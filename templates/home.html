@@ -1,0 +1,12 @@
+<!-- home.html -->
+{% extends 'base.html' %}
+
+{% block content %}
+<h1>Bienvenue sur le système de gestion des absences</h1>
+<p>Veuillez choisir un groupe de classe pour prendre les présences.</p>
+
+    <form method="POST" action="{% url 'Ml_gestionABS_app:take_attendance' class_group_id=1 %}">
+    {% csrf_token %}
+    <button type="submit">Enregistrer la présence</button>
+</form>
+{% endblock %}

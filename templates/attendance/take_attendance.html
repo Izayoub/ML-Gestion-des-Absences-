@@ -1,0 +1,101 @@
+<!-- templates/attendance/take_attendance.html -->
+{% extends 'base.html' %}
+
+{% block content %}
+<div class="container mx-auto px-4 py-8">
+    <h1 class="text-2xl font-bold mb-4">Prendre les présences</h1>
+
+    <div class="mb-4">
+        <video id="video" width="640" height="480" class="border border-gray-300 rounded"></video>
+    </div>
+
+    <div class="flex space-x-4">
+        <button id="startButton" class="bg-green-500 text-white px-4 py-2 rounded">
+            Démarrer la caméra
+        </button>
+        <button id="stopButton" class="bg-red-500 text-white px-4 py-2 rounded" disabled>
+            Arrêter
+        </button>
+    </div>
+
+    <div id="recognizedStudents" class="mt-4">
+        <h2 class="text-xl font-semibold mb-2">Étudiants reconnus:</h2>
+        <ul id="studentsList" class="list-disc pl-5">
+        </ul>
+    </div>
+</div>
+
+<script>
+    // Passer class_group_id depuis le backend au JavaScript
+    window.classGroupId = {{ class_group_id }};
+
+    let video;
+    let stream;
+    const processInterval = 3000; // Process every 3 seconds
+    let processingInterval;
+
+    document.getElementById('startButton').addEventListener('click', startCamera);
+    document.getElementById('stopButton').addEventListener('click', stopCamera);
+
+    async function startCamera() {
+        try {
+            video = document.getElementById('video');
+            stream = await navigator.mediaDevices.getUserMedia({ video: true });
+            video.srcObject = stream;
+            video.play();
+
+            document.getElementById('startButton').disabled = true;
+            document.getElementById('stopButton').disabled = false;
+
+            // Start processing frames
+            processingInterval = setInterval(processFrame, processInterval);
+        } catch (err) {
+            console.error("Erreur lors de l'accès à la caméra:", err);
+        }
+    }
+
+    function stopCamera() {
+        if (stream) {
+            stream.getTracks().forEach(track => track.stop());
+            clearInterval(processingInterval);
+            document.getElementById('startButton').disabled = false;
+            document.getElementById('stopButton').disabled = true;
+            document.getElementById('studentsList').innerHTML = '';
+        }
+    }
+
+    async function processFrame() {
+        const canvas = document.createElement('canvas');
+        canvas.width = video.videoWidth;
+        canvas.height = video.videoHeight;
+        canvas.getContext('2d').drawImage(video, 0, 0);
+
+        // Convert canvas to blob
+        canvas.toBlob(async (blob) => {
+            const formData = new FormData();
+            formData.append('frame', blob, 'frame.jpg');
+
+            try {
+                const response = await fetch(`/attendance/process/${window.classGroupId}/`, {
+                    method: 'POST',
+                    body: formData
+                });
+
+                const data = await response.json();
+                if (data.status === 'success') {
+                    updateRecognizedStudents(data.recognized_students);
+                }
+            } catch (err) {
+                console.error("Erreur lors du traitement:", err);
+            }
+        }, 'image/jpeg');
+    }
+
+    function updateRecognizedStudents(students) {
+        const list = document.getElementById('studentsList');
+        list.innerHTML = students.map(student =>
+            `<li>${student.name} (Présent)</li>`
+        ).join('');
+    }
+</script>
+{% endblock %}
